@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
+import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { FileText, Upload, X } from "lucide-react";
 import Link from "next/link";
 
 export default function UploadPage() {
+  const { user } = useUser();
   const [files, setFiles] = useState<File[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -39,12 +41,12 @@ export default function UploadPage() {
         [".docx"],
     },
     maxFiles: 1,
-    maxSize: 50 * 1024 * 1024, // 50MB limit (Supabase free plan)
+    maxSize: 100 * 1024 * 1024, // 100MB limit (MEGA supports much more)
     onDropRejected: (rejectedFiles) => {
       const file = rejectedFiles[0];
       if (file.errors.some((e) => e.code === "file-too-large")) {
         setError(
-          `File size too large. Maximum allowed size is 50MB. Your file is ${Math.round(
+          `File size too large. Maximum allowed size is 100MB. Your file is ${Math.round(
             file.file.size / (1024 * 1024)
           )}MB. Please compress your file.`
         );
@@ -73,6 +75,11 @@ export default function UploadPage() {
       return;
     }
 
+    if (!user) {
+      setError("Please sign in to upload files");
+      return;
+    }
+
     setUploading(true);
     setError("");
 
@@ -83,11 +90,13 @@ export default function UploadPage() {
       formData.append("description", description);
       formData.append("isPublic", isPublic.toString());
       formData.append("passwordEnabled", passwordEnabled.toString());
+      formData.append("userEmail", user.emailAddresses[0].emailAddress);
+      formData.append("clerkId", user.id);
       if (passwordEnabled && password) {
         formData.append("password", password);
       }
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/upload-mega", {
         method: "POST",
         body: formData,
       });

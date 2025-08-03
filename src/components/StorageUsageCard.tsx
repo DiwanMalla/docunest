@@ -35,7 +35,7 @@ export default function StorageUsageCard() {
 
   const fetchUsage = async () => {
     try {
-      const response = await fetch("/api/supabase/usage");
+      const response = await fetch("/api/mega/usage");
       if (response.ok) {
         const data = await response.json();
         setUsage(data);
@@ -83,7 +83,7 @@ export default function StorageUsageCard() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center text-base">
             <Cloud className="h-5 w-5 mr-2 text-red-600" />
-            Storage Usage
+            Storage Usage (MEGA)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -104,8 +104,8 @@ export default function StorageUsageCard() {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-base">
-            <Cloud className="h-5 w-5 mr-2 text-blue-600" />
-            Storage Usage (Supabase)
+            <Cloud className="h-5 w-5 mr-2 text-red-600" />
+            Storage Usage (MEGA)
           </CardTitle>
           <Button
             variant="ghost"
