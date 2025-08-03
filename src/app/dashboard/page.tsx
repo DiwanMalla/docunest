@@ -1,6 +1,7 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ensureUserExists } from "@/lib/user";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, Globe } from "lucide-react";
 import Link from "next/link";
@@ -8,13 +9,13 @@ import DashboardContent from "@/components/DashboardContent";
 
 async function getUserNotes(clerkUserId: string) {
   try {
-    // First find the database user by Clerk ID
+    // Find the database user by Clerk ID
     const dbUser = await prisma.user.findUnique({
       where: { clerkId: clerkUserId },
     });
 
     if (!dbUser) {
-      console.log("User not found in database");
+      console.log("User not found in database after creation attempt");
       return [];
     }
 
@@ -24,38 +25,8 @@ async function getUserNotes(clerkUserId: string) {
     });
   } catch (error) {
     console.error("Database error:", error);
-    // Return mock data for demo purposes when database is not available
-    return [
-      {
-        id: "demo-1",
-        title: "Sample PDF Document",
-        description: "This is a sample document for demonstration",
-        fileUrl: "/sample.pdf",
-        fileType: "application/pdf",
-        fileName: "sample.pdf",
-        fileSize: 1024000,
-        isPublic: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        userId: clerkUserId,
-        cloudinaryId: "demo",
-      },
-      {
-        id: "demo-2",
-        title: "Example DOCX File",
-        description: "Another sample document",
-        fileUrl: "/example.docx",
-        fileType:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        fileName: "example.docx",
-        fileSize: 512000,
-        isPublic: true,
-        createdAt: new Date(Date.now() - 86400000),
-        updatedAt: new Date(Date.now() - 86400000),
-        userId: clerkUserId,
-        cloudinaryId: "demo2",
-      },
-    ];
+    // Return empty array instead of mock data for better UX
+    return [];
   }
 }
 
@@ -65,6 +36,21 @@ export default async function Dashboard() {
   if (!userId) {
     redirect("/sign-in");
   }
+
+  // Get current user details from Clerk
+  const user = await currentUser();
+  if (!user) {
+    redirect("/sign-in");
+  }
+
+  // Ensure user exists in our database
+  await ensureUserExists(
+    userId,
+    user.emailAddresses[0]?.emailAddress || "",
+    user.firstName && user.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user.firstName || undefined
+  );
 
   const notes = await getUserNotes(userId);
 

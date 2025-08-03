@@ -1,28 +1,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { ensureUserExists } from "@/lib/user";
 import cloudinary from "@/lib/cloudinary";
 import { encryptPassword } from "@/lib/encryption";
-
-async function ensureUserExists(clerkId: string, email: string, name?: string) {
-  try {
-    const user = await prisma.user.upsert({
-      where: { clerkId },
-      update: { email, name },
-      create: {
-        clerkId,
-        email,
-        name,
-        role: "ADMIN", // Users who can upload are admins
-      },
-    });
-
-    return user;
-  } catch (error) {
-    console.error("Error ensuring user exists:", error);
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -131,6 +113,9 @@ export async function POST(request: NextRequest) {
           userId: dbUser.id, // Use the database user ID, not Clerk ID
         },
       });
+
+      // Revalidate the dashboard page to show the new document
+      revalidatePath("/dashboard");
 
       return NextResponse.json({ note }, { status: 201 });
     } catch (dbError) {

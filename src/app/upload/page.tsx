@@ -83,6 +83,8 @@ export default function UploadPage() {
         throw new Error("Upload failed");
       }
 
+      // Refresh the router cache and navigate to dashboard
+      router.refresh();
       router.push("/dashboard");
     } catch {
       setError("Failed to upload file. Please try again.");
