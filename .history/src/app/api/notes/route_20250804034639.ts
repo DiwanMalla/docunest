@@ -1,0 +1,135 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { prisma } from "@/lib/prisma";
+
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      title,
+      description,
+      fileUrl,
+      fileName,
+      fileType,
+      fileSize,
+      isPublic,
+      passwordEnabled,
+      downloadPassword,
+    } = body;
+
+    // Validate required fields
+    if (!title || !fileUrl || !fileName) {
+      return NextResponse.json(
+        { error: "Missing required fields: title, fileUrl, fileName" },
+        { status: 400 }
+      );
+    }
+
+    // Ensure user exists in database and get the database user ID
+    const user = await prisma.user.upsert({
+      where: { clerkId: userId },
+      update: {},
+      create: {
+        clerkId: userId,
+        email: `${userId}@temp.com`, // Temporary email, should be updated with real data
+        name: "User",
+      },
+    });
+
+    // Create note in database using the database user ID
+    const note = await prisma.note.create({
+      data: {
+        title,
+        description: description || null,
+        fileName,
+        fileUrl,
+        fileType: fileType || null,
+        fileSize: fileSize || null,
+        isPublic: isPublic || false,
+        passwordEnabled: passwordEnabled || false,
+        downloadPassword: passwordEnabled ? downloadPassword : null,
+        userId: user.id, // Use the database user ID, not the Clerk ID
+      },
+    });
+
+    return NextResponse.json(
+      { 
+        success: true, 
+        note: {
+          id: note.id,
+          title: note.title,
+          fileName: note.fileName,
+          createdAt: note.createdAt,
+        }
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Error creating note:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const limit = searchParams.get("limit");
+    const offset = searchParams.get("offset");
+
+    // Get the database user ID from Clerk ID
+    const user = await prisma.user.findUnique({
+      where: { clerkId: userId },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const notes = await prisma.note.findMany({
+      where: {
+        userId: user.id, // Use database user ID
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: limit ? parseInt(limit) : undefined,
+      skip: offset ? parseInt(offset) : undefined,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        fileName: true,
+        fileUrl: true,
+        fileType: true,
+        fileSize: true,
+        isPublic: true,
+        passwordEnabled: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return NextResponse.json({ notes }, { status: 200 });
+  } catch (error) {
+    console.error("Error fetching notes:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

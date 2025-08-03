@@ -1,8 +1,8 @@
 // Legacy Supabase upload route - DEPRECATED
 // Use /upload-edgestore page instead for new uploads
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST() {
+export async function POST(_request: NextRequest) {
   // Redirect to EdgeStore upload page
   return NextResponse.json(
     { 
