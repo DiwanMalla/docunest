@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ensureUserExists } from "@/lib/user";
-import cloudinary from "@/lib/cloudinary";
+import { supabase } from "@/lib/supabase";
 import { encryptPassword } from "@/lib/encryption";
 
 export async function POST(request: NextRequest) {
@@ -52,99 +52,99 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Upload to Cloudinary
-    const uploadResponse = await new Promise((resolve, reject) => {
-      cloudinary.uploader
-        .upload_stream(
-          {
-            resource_type: "raw", // Use 'raw' for non-image files like PDFs
-            folder: "docunest",
-            public_id: `${userId}_${Date.now()}_${file.name.replace(
-              /[^a-zA-Z0-9]/g,
-              "_"
-            )}`, // Sanitize filename
-            access_mode: "public", // Ensure public access
-            type: "upload", // Standard upload type
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        )
-        .end(buffer);
-    });
-
-    const cloudinaryResult = uploadResponse as {
-      secure_url: string;
-      public_id: string;
-      resource_type: string;
-    };
-
-    // For raw files, we need to construct the correct URL format
-    const fileUrl =
-      cloudinaryResult.resource_type === "raw"
-        ? `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${cloudinaryResult.public_id}`
-        : cloudinaryResult.secure_url;
-
-    // Save to database
-    try {
-      // Encrypt password if provided
-      let encryptedPassword = null;
-      if (passwordEnabled && password) {
-        encryptedPassword = encryptPassword(password);
-      }
-
-      const note = await prisma.note.create({
-        data: {
-          title,
-          description: description || null,
-          fileUrl: fileUrl, // Use the corrected URL
-          fileType: file.type,
-          fileName: file.name,
-          fileSize: file.size,
-          cloudinaryId: cloudinaryResult.public_id,
-          isPublic: isPublic, // Use the value from form
-          passwordEnabled: passwordEnabled,
-          downloadPassword: encryptedPassword,
-          userId: dbUser.id, // Use the database user ID, not Clerk ID
-        },
-      });
-
-      // Revalidate the dashboard page to show the new document
-      revalidatePath("/dashboard");
-
-      return NextResponse.json({ note }, { status: 201 });
-    } catch (dbError) {
-      console.error("Database save error:", dbError);
-      // Return success with file upload info even if database save fails
-      // In a production app, you might want to store this in a temporary cache
-      const mockNote = {
-        id: `temp_${Date.now()}`,
-        title,
-        description: description || null,
-        fileUrl: fileUrl, // Use the corrected URL
-        fileType: file.type,
-        fileName: file.name,
-        fileSize: file.size,
-        cloudinaryId: cloudinaryResult.public_id,
-        isPublic: isPublic,
-        passwordEnabled: passwordEnabled,
-        userId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
+    // Check file size (50MB limit for Supabase free plan)
+    const maxSize = 50 * 1024 * 1024; // 50MB in bytes (Supabase free plan limit)
+    if (file.size > maxSize) {
       return NextResponse.json(
         {
-          note: mockNote,
-          warning:
-            "File uploaded to cloud storage but database save failed. Please contact support.",
+          error: `File size too large. Maximum allowed size is 50MB. Your file is ${Math.round(
+            file.size / (1024 * 1024)
+          )}MB. Please compress your file.`,
         },
-        { status: 201 }
+        { status: 400 }
+      );
+    }
+
+    // Convert file to buffer
+    const bytes = await file.arrayBuffer();
+
+    // Create unique filename
+    const timestamp = Date.now();
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.]/g, "_");
+    const fileName = `${userId}_${timestamp}_${sanitizedFileName}`;
+    const filePath = `documents/${fileName}`;
+
+    // Upload to Supabase Storage
+    try {
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, bytes, {
+          contentType: file.type,
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error("Supabase upload error:", uploadError);
+        return NextResponse.json(
+          {
+            error: `Upload failed: ${uploadError.message}`,
+          },
+          { status: 500 }
+        );
+      }
+
+      // Get public URL for the uploaded file
+      const { data: urlData } = supabase.storage
+        .from("documents")
+        .getPublicUrl(filePath);
+
+      const fileUrl = urlData.publicUrl;
+
+      // Save to database
+      try {
+        // Encrypt password if provided
+        let encryptedPassword = null;
+        if (passwordEnabled && password) {
+          encryptedPassword = encryptPassword(password);
+        }
+
+        const note = await prisma.note.create({
+          data: {
+            title,
+            description: description || null,
+            fileUrl: fileUrl,
+            fileType: file.type,
+            fileName: file.name,
+            fileSize: file.size,
+            cloudinaryId: uploadData.path, // Store Supabase file path instead
+            isPublic: isPublic,
+            passwordEnabled: passwordEnabled,
+            downloadPassword: encryptedPassword,
+            userId: dbUser.id,
+          },
+        });
+
+        // Revalidate the dashboard page to show the new document
+        revalidatePath("/dashboard");
+
+        return NextResponse.json({ note }, { status: 201 });
+      } catch (dbError) {
+        console.error("Database save error:", dbError);
+
+        // If database save fails, clean up the uploaded file
+        await supabase.storage.from("documents").remove([filePath]);
+
+        return NextResponse.json(
+          { error: "Failed to save document information" },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error("Supabase upload error:", error);
+      return NextResponse.json(
+        { error: "Failed to upload file" },
+        { status: 500 }
       );
     }
   } catch (error) {

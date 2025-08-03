@@ -39,6 +39,19 @@ export default function UploadPage() {
         [".docx"],
     },
     maxFiles: 1,
+    maxSize: 50 * 1024 * 1024, // 50MB limit (Supabase free plan)
+    onDropRejected: (rejectedFiles) => {
+      const file = rejectedFiles[0];
+      if (file.errors.some((e) => e.code === "file-too-large")) {
+        setError(
+          `File size too large. Maximum allowed size is 50MB. Your file is ${Math.round(
+            file.file.size / (1024 * 1024)
+          )}MB. Please compress your file.`
+        );
+      } else if (file.errors.some((e) => e.code === "file-invalid-type")) {
+        setError("Invalid file type. Please upload PDF or DOCX files only.");
+      }
+    },
   });
 
   const removeFile = () => {
@@ -80,14 +93,19 @@ export default function UploadPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Upload failed");
       }
 
       // Refresh the router cache and navigate to dashboard
       router.refresh();
       router.push("/dashboard");
-    } catch {
-      setError("Failed to upload file. Please try again.");
+    } catch (uploadError) {
+      const errorMessage =
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Failed to upload file. Please try again.";
+      setError(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -126,6 +144,7 @@ export default function UploadPage() {
           </h1>
           <p className="mt-2 text-sm sm:text-base text-gray-600">
             Upload your PDF or DOCX files to store them securely in the cloud.
+            Maximum file size: 50MB.
           </p>
         </div>
 
@@ -157,7 +176,7 @@ export default function UploadPage() {
                     to choose a file
                   </p>
                   <p className="text-sm text-gray-400 mt-2">
-                    Supports PDF and DOCX files
+                    Supports PDF and DOCX files (max 50MB)
                   </p>
                 </div>
               ) : (
@@ -169,7 +188,9 @@ export default function UploadPage() {
                         {files[0].name}
                       </p>
                       <p className="text-sm text-gray-500">
-                        {Math.round(files[0].size / 1024)} KB
+                        {files[0].size > 1024 * 1024
+                          ? `${Math.round(files[0].size / (1024 * 1024))} MB`
+                          : `${Math.round(files[0].size / 1024)} KB`}
                       </p>
                     </div>
                   </div>
@@ -258,9 +279,42 @@ export default function UploadPage() {
           </Card>
 
           {error && (
-            <Alert>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div className="space-y-4">
+              <Alert>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+
+              {error.includes("File size too large") && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardContent className="pt-6">
+                    <h4 className="font-medium text-blue-900 mb-2">
+                      💡 File Compression Tips
+                    </h4>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>
+                        • For PDFs: Use online tools like SmallPDF, ILovePDF, or
+                        PDF24
+                      </li>
+                      <li>
+                        • For DOCX: Save as PDF with &quot;Minimum size&quot;
+                        option
+                      </li>
+                      <li>
+                        • Remove images or compress them before adding to
+                        document
+                      </li>
+                      <li>
+                        • Consider splitting large documents into smaller parts
+                      </li>
+                    </ul>
+                    <p className="text-xs text-blue-600 mt-3">
+                      Current limit: 50MB. Upgrade to paid plan for even larger
+                      files.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
 
           <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4">

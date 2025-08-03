@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, Upload, Globe } from "lucide-react";
 import Link from "next/link";
 import DashboardContent from "@/components/DashboardContent";
+import StorageUsageCard from "@/components/StorageUsageCard";
 
 async function getUserNotes(clerkUserId: string) {
   try {
@@ -106,6 +107,11 @@ export default async function Dashboard() {
                   notes.length === 1 ? "" : "s"
                 } stored.`}
           </p>
+        </div>
+
+        {/* Storage Usage Card */}
+        <div className="mb-6">
+          <StorageUsageCard />
         </div>
 
         <DashboardContent notes={notes} />

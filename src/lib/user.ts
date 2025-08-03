@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 
-export async function ensureUserExists(clerkId: string, email: string, name?: string) {
+export async function ensureUserExists(
+  clerkId: string,
+  email: string,
+  name?: string
+) {
   try {
     const user = await prisma.user.upsert({
       where: { clerkId },
