@@ -58,7 +58,6 @@ export default function NotePage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [isTogglingPublic, setIsTogglingPublic] = useState(false);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -191,26 +190,21 @@ export default function NotePage() {
       return fileUrl; // We'll handle PDF with react-pdf
     }
 
-    // For large files, try direct viewing first
-    if (note?.fileSize && note.fileSize > 20 * 1024 * 1024) {
-      // For very large files, try direct access first
-      return fileUrl;
-    }
-
-    // For other document types, use Google Docs Viewer (more reliable than Office Online)
+    // For other document types, use Google Docs Viewer or Office Online
     if (
       ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(
         fileType.toLowerCase()
       )
     ) {
-      // Try Google Docs Viewer first as it's more reliable
-      return `https://docs.google.com/gview?url=${encodeURIComponent(
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
         fileUrl
-      )}&embedded=true`;
+      )}`;
     }
 
-    // Fallback to direct file URL
-    return fileUrl;
+    // Fallback to Google Docs Viewer for other formats
+    return `https://docs.google.com/gview?url=${encodeURIComponent(
+      fileUrl
+    )}&embedded=true`;
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -406,7 +400,6 @@ export default function NotePage() {
                     } else {
                       setViewMode("viewer");
                       setIsFullscreen(true); // Open directly in fullscreen
-                      setIframeLoaded(false); // Reset iframe loading state
                     }
                   }}
                   variant={viewMode === "viewer" ? "default" : "outline"}
@@ -510,247 +503,159 @@ export default function NotePage() {
             {/* Fullscreen Document Content */}
             <div className="flex-1 bg-gray-100 overflow-auto">
               {note.fileType.toLowerCase() === "pdf" ? (
-                <div className="pdf-viewer-fullscreen h-full flex flex-col">
-                  {/* Show warning for large files but still allow viewing */}
-                  {note.fileSize && note.fileSize > 10 * 1024 * 1024 && (
-                    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                          <span className="text-yellow-800">
-                            Large file ({formatFileSize(note.fileSize)}) - Loading may take longer
-                          </span>
-                        </div>
+                // Check if file is too large (over 10MB) for preview
+                note.fileSize && note.fileSize > 10 * 1024 * 1024 ? (
+                  <div className="h-full flex items-center justify-center p-8">
+                    <Card className="max-w-md w-full text-center">
+                      <CardContent className="pt-8 pb-8">
+                        <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                          Large File Preview
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                          This file is {formatFileSize(note.fileSize)} which is too large for online preview.
+                        </p>
                         <Button
                           onClick={handleDownload}
-                          size="sm"
-                          variant="outline"
-                          className="text-xs border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                          className="w-full bg-blue-600 hover:bg-blue-700"
                         >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download Instead
+                          <Download className="h-4 w-4 mr-2" />
+                          Download to View
                         </Button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Document
-                    file={note.fileUrl}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(error) => {
-                      console.error("PDF load error:", error);
-                    }}
-                    loading={
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-center">
-                          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                          <p className="text-gray-600">Loading PDF...</p>
-                          {note.fileSize && note.fileSize > 10 * 1024 * 1024 && (
-                            <p className="text-xs text-gray-500 mt-2">
-                              Large file - This may take a moment
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    }
-                    error={
-                      <div className="flex items-center justify-center h-full">
-                        <Card className="max-w-md w-full text-center">
-                          <CardContent className="pt-8 pb-8">
-                            <FileText className="h-16 w-16 text-red-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                              Preview Not Available
-                            </h3>
-                            <p className="text-gray-600 mb-4">
-                              Unable to load PDF preview. This might be due to file size or format issues.
-                            </p>
-                            <Button
-                              onClick={handleDownload}
-                              className="w-full bg-blue-600 hover:bg-blue-700"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Download File
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    }
-                    className="flex-1 flex justify-center items-center p-2 sm:p-4"
-                    options={{
-                      // Optimize for large files
-                      cMapUrl: `//unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-                      cMapPacked: true,
-                      disableStream: note.fileSize ? note.fileSize > 20 * 1024 * 1024 : false, // Disable streaming for very large files
-                      disableAutoFetch: note.fileSize ? note.fileSize > 20 * 1024 * 1024 : false, // Disable auto-fetch for very large files
-                    }}
-                  >
-                    <Page
-                      pageNumber={pageNumber}
-                      scale={scale}
-                      className="shadow-2xl max-w-full"
+                        <p className="text-xs text-gray-500 mt-2">
+                          Files larger than 10MB are downloaded for better performance
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <div className="pdf-viewer-fullscreen h-full flex flex-col">
+                    <Document
+                      file={note.fileUrl}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={(error) => {
+                        console.error("PDF load error:", error);
+                      }}
                       loading={
-                        <div className="w-96 h-96 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+                        <div className="flex items-center justify-center h-full">
                           <div className="text-center">
-                            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                            <p className="text-gray-500 text-sm">Loading page {pageNumber}...</p>
+                            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600">Loading PDF...</p>
                           </div>
                         </div>
                       }
                       error={
-                        <div className="w-96 h-96 bg-red-50 border-2 border-red-200 rounded-lg flex items-center justify-center">
-                          <div className="text-center">
-                            <p className="text-red-600 mb-2">Failed to load page {pageNumber}</p>
-                            <Button
-                              onClick={handleDownload}
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600"
-                            >
-                              <Download className="h-3 w-3 mr-1" />
-                              Download
-                            </Button>
-                          </div>
+                        <div className="flex items-center justify-center h-full">
+                          <Card className="max-w-md w-full text-center">
+                            <CardContent className="pt-8 pb-8">
+                              <FileText className="h-16 w-16 text-red-400 mx-auto mb-4" />
+                              <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                                Preview Not Available
+                              </h3>
+                              <p className="text-gray-600 mb-4">
+                                Unable to load PDF preview. Please download the file to view it.
+                              </p>
+                              <Button
+                                onClick={handleDownload}
+                                className="w-full bg-blue-600 hover:bg-blue-700"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download File
+                              </Button>
+                            </CardContent>
+                          </Card>
                         </div>
                       }
-                      renderTextLayer={false} // Disable text layer for better performance with large files
-                      renderAnnotationLayer={false} // Disable annotation layer for better performance
-                    />
-                  </Document>
+                      className="flex-1 flex justify-center items-center p-2 sm:p-4"
+                    >
+                      <Page
+                        pageNumber={pageNumber}
+                        scale={scale}
+                        className="shadow-2xl max-w-full"
+                        loading={
+                          <div className="w-96 h-96 bg-gray-200 animate-pulse rounded-lg flex items-center justify-center">
+                            <p className="text-gray-500">Loading page...</p>
+                          </div>
+                        }
+                        error={
+                          <div className="w-96 h-96 bg-red-50 border-2 border-red-200 rounded-lg flex items-center justify-center">
+                            <p className="text-red-600">Failed to load page</p>
+                          </div>
+                        }
+                      />
+                    </Document>
 
-                  {numPages > 0 && (
-                    <div className="bg-white border-t px-2 sm:px-6 py-2 sm:py-3 flex items-center justify-center gap-2 sm:gap-4">
-                      <Button
-                        variant="outline"
-                        onClick={previousPage}
-                        disabled={pageNumber <= 1}
-                        size="sm"
-                        className="text-xs sm:text-sm"
-                      >
-                        <span className="hidden sm:inline">Previous</span>
-                        <span className="sm:hidden">Prev</span>
-                      </Button>
-                      <span className="text-xs sm:text-sm text-gray-600 bg-gray-100 px-2 sm:px-3 py-1 rounded whitespace-nowrap">
-                        {pageNumber} / {numPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        onClick={nextPage}
-                        disabled={pageNumber >= numPages}
-                        size="sm"
-                        className="text-xs sm:text-sm"
-                      >
-                        <span className="hidden sm:inline">Next</span>
-                        <span className="sm:hidden">Next</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col">
-                  {/* Show warning for files that might have viewer issues */}
-                  {note.fileSize && note.fileSize > 10 * 1024 * 1024 && (
-                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="text-blue-800">
-                            Large {note.fileType.toUpperCase()} file ({formatFileSize(note.fileSize)}) - If preview fails, download is recommended
-                          </span>
-                        </div>
+                    {numPages > 0 && (
+                      <div className="bg-white border-t px-2 sm:px-6 py-2 sm:py-3 flex items-center justify-center gap-2 sm:gap-4">
                         <Button
-                          onClick={handleDownload}
-                          size="sm"
                           variant="outline"
-                          className="text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
+                          onClick={previousPage}
+                          disabled={pageNumber <= 1}
+                          size="sm"
+                          className="text-xs sm:text-sm"
                         >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download
+                          <span className="hidden sm:inline">Previous</span>
+                          <span className="sm:hidden">Prev</span>
+                        </Button>
+                        <span className="text-xs sm:text-sm text-gray-600 bg-gray-100 px-2 sm:px-3 py-1 rounded whitespace-nowrap">
+                          {pageNumber} / {numPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={nextPage}
+                          disabled={pageNumber >= numPages}
+                          size="sm"
+                          className="text-xs sm:text-sm"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <span className="sm:hidden">Next</span>
                         </Button>
                       </div>
-                    </div>
-                  )}
-                  
-                  <div className="flex-1 p-2 sm:p-4 relative">
-                    {/* Multiple viewer fallback system */}
+                    )}
+                  </div>
+                )
+              ) : (
+                // For non-PDF files, also check size
+                note.fileSize && note.fileSize > 25 * 1024 * 1024 ? (
+                  <div className="h-full flex items-center justify-center p-8">
+                    <Card className="max-w-md w-full text-center">
+                      <CardContent className="pt-8 pb-8">
+                        <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                          Large Document
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                          This {note.fileType.toUpperCase()} file is {formatFileSize(note.fileSize)} which is too large for online preview.
+                        </p>
+                        <Button
+                          onClick={handleDownload}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download to View
+                        </Button>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Files larger than 25MB are downloaded for better performance
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <div className="h-full p-2 sm:p-4">
                     <iframe
-                      ref={(iframe) => {
-                        if (iframe && !iframeLoaded) {
-                          iframe.onload = () => {
-                            console.log("Document loaded successfully");
-                            setIframeLoaded(true);
-                          };
-                          iframe.onerror = () => {
-                            console.log("Primary viewer failed, trying fallback...");
-                            // Try Google Docs Viewer as fallback
-                            iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(note.fileUrl)}&embedded=true`;
-                            // If that also fails, show download option
-                            setTimeout(() => {
-                              if (!iframeLoaded) {
-                                setIframeLoaded(true);
-                                // Show a custom error message
-                              }
-                            }, 10000); // Wait 10 seconds for fallback to load
-                          };
-                        }
-                      }}
                       src={getViewerUrl(note.fileUrl, note.fileType)}
                       width="100%"
                       height="100%"
                       frameBorder="0"
                       className="rounded-lg shadow-lg bg-white"
                       title={`${note.title} - Document Viewer`}
-                      allow="fullscreen"
-                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                      onError={() => {
+                        // If iframe fails to load, show download option
+                        console.error("Failed to load document in iframe");
+                      }}
                     />
-                    
-                    {/* Loading overlay */}
-                    {!iframeLoaded && (
-                      <div className="absolute inset-0 bg-white/95 flex items-center justify-center rounded-lg">
-                        <div className="text-center bg-white p-8 rounded-xl shadow-lg border max-w-md mx-4">
-                          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2">Loading Document</h3>
-                          <p className="text-gray-600 mb-1">
-                            {note.fileSize && note.fileSize > 20 * 1024 * 1024 
-                              ? `Loading large ${note.fileType.toUpperCase()} file (${formatFileSize(note.fileSize)})`
-                              : `Loading ${note.fileType.toUpperCase()} document`
-                            }
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {note.fileSize && note.fileSize > 20 * 1024 * 1024 
-                              ? "Large files may take longer to load or may require download"
-                              : "This should only take a moment"
-                            }
-                          </p>
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            <Button
-                              onClick={handleDownload}
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Download Instead
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Quick download button (always visible when loaded) */}
-                    {iframeLoaded && (
-                      <div className="absolute top-4 right-4">
-                        <Button
-                          onClick={handleDownload}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 shadow-lg"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
-                      </div>
-                    )}
                   </div>
-                </div>
+                )
               )}
             </div>
           </div>

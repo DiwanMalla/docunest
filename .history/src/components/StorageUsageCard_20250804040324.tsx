@@ -42,16 +42,16 @@ export default function StorageUsageCard() {
         const notes = data.notes || [];
         
         // Calculate total storage used from user's files
-        const totalSizeBytes = notes.reduce((total: number, note: { fileSize?: number }) => {
+        const totalSizeBytes = notes.reduce((total: number, note: any) => {
           return total + (note.fileSize || 0);
         }, 0);
         
         const totalSizeMB = Math.round(totalSizeBytes / (1024 * 1024));
         const totalSizeGB = Math.round((totalSizeBytes / (1024 * 1024 * 1024)) * 100) / 100;
         
-        // EdgeStore limits - 1GB limit
-        const limitBytes = 1024 * 1024 * 1024; // 1GB limit
-        const limitGB = 1;
+        // EdgeStore limits (these are typical EdgeStore limits)
+        const limitBytes = 1024 * 1024 * 1024 * 1024; // 1TB (generous limit)
+        const limitGB = 1024;
         
         const usagePercentage = Math.round((totalSizeBytes / limitBytes) * 100);
         
@@ -71,7 +71,7 @@ export default function StorageUsageCard() {
           },
           resources: {
             used: notes.length,
-            limit: 100, // 100 files limit
+            limit: 10000, // Generous file limit
           },
           plan: "EdgeStore",
           lastUpdated: new Date().toISOString(),
@@ -103,7 +103,7 @@ export default function StorageUsageCard() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center text-base">
             <Cloud className="h-5 w-5 mr-2 text-blue-600" />
-            Storage Usage (EdgeStore)
+            Storage Usage
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -123,7 +123,7 @@ export default function StorageUsageCard() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center text-base">
             <Cloud className="h-5 w-5 mr-2 text-red-600" />
-            Storage Usage (EdgeStore)
+            Storage Usage (MEGA)
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -134,22 +134,22 @@ export default function StorageUsageCard() {
   }
 
   return (
-    <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+    <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-base">
-            <Cloud className="h-5 w-5 mr-2 text-blue-600" />
-            Storage Usage (EdgeStore)
+            <Cloud className="h-5 w-5 mr-2 text-red-600" />
+            Storage Usage (MEGA)
           </CardTitle>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="h-8 w-8 p-0 hover:bg-blue-100"
+            className="h-8 w-8 p-0"
           >
             <RefreshCw
-              className={`h-4 w-4 text-blue-600 ${refreshing ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
             />
           </Button>
         </div>
@@ -158,17 +158,17 @@ export default function StorageUsageCard() {
         {/* Storage Usage */}
         <div>
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="flex items-center text-gray-700">
+            <span className="flex items-center">
               <HardDrive className="h-4 w-4 mr-1" />
               Storage
             </span>
-            <span className="font-semibold text-gray-900">
+            <span className="font-medium">
               {usage.storage.used.gb} GB / {usage.storage.limit.gb} GB
             </span>
           </div>
-          <Progress value={usage.storage.percentage} className="h-3 bg-gray-200" />
-          <div className="flex justify-between text-xs text-gray-600 mt-2">
-            <span className="font-medium">{usage.storage.percentage}% used</span>
+          <Progress value={usage.storage.percentage} className="h-2" />
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>{usage.storage.percentage}% used</span>
             <span>
               {Math.round(
                 (usage.storage.limit.gb - usage.storage.used.gb) * 100
@@ -181,30 +181,28 @@ export default function StorageUsageCard() {
         {/* File Count */}
         <div>
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gray-700">Files</span>
-            <span className="font-semibold text-gray-900">
+            <span>Files</span>
+            <span className="font-medium">
               {usage.resources.used.toLocaleString()} /{" "}
               {usage.resources.limit.toLocaleString()}
             </span>
           </div>
           <Progress
             value={(usage.resources.used / usage.resources.limit) * 100}
-            className="h-3 bg-gray-200"
+            className="h-2"
           />
         </div>
 
         {/* Plan Info */}
-        <div className="pt-3 border-t border-blue-200">
-          <div className="flex justify-between text-xs text-gray-600">
-            <span className="font-medium">Plan: <span className="text-blue-600">{usage.plan}</span></span>
+        <div className="pt-2 border-t">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Plan: {usage.plan}</span>
             <span>
               Updated: {new Date(usage.lastUpdated).toLocaleTimeString()}
             </span>
           </div>
           {usage.warning && (
-            <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
-              ⚠️ {usage.warning}
-            </div>
+            <p className="text-xs text-yellow-600 mt-1">{usage.warning}</p>
           )}
         </div>
       </CardContent>

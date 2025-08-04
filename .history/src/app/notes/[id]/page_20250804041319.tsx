@@ -191,26 +191,21 @@ export default function NotePage() {
       return fileUrl; // We'll handle PDF with react-pdf
     }
 
-    // For large files, try direct viewing first
-    if (note?.fileSize && note.fileSize > 20 * 1024 * 1024) {
-      // For very large files, try direct access first
-      return fileUrl;
-    }
-
-    // For other document types, use Google Docs Viewer (more reliable than Office Online)
+    // For other document types, use Google Docs Viewer or Office Online
     if (
       ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(
         fileType.toLowerCase()
       )
     ) {
-      // Try Google Docs Viewer first as it's more reliable
-      return `https://docs.google.com/gview?url=${encodeURIComponent(
+      return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(
         fileUrl
-      )}&embedded=true`;
+      )}`;
     }
 
-    // Fallback to direct file URL
-    return fileUrl;
+    // Fallback to Google Docs Viewer for other formats
+    return `https://docs.google.com/gview?url=${encodeURIComponent(
+      fileUrl
+    )}&embedded=true`;
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -406,7 +401,6 @@ export default function NotePage() {
                     } else {
                       setViewMode("viewer");
                       setIsFullscreen(true); // Open directly in fullscreen
-                      setIframeLoaded(false); // Reset iframe loading state
                     }
                   }}
                   variant={viewMode === "viewer" ? "default" : "outline"}
@@ -647,106 +641,55 @@ export default function NotePage() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col">
-                  {/* Show warning for files that might have viewer issues */}
-                  {note.fileSize && note.fileSize > 10 * 1024 * 1024 && (
-                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+                  {/* Show warning for large non-PDF files */}
+                  {note.fileSize && note.fileSize > 25 * 1024 * 1024 && (
+                    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="text-blue-800">
-                            Large {note.fileType.toUpperCase()} file ({formatFileSize(note.fileSize)}) - If preview fails, download is recommended
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                          <span className="text-yellow-800">
+                            Large {note.fileType.toUpperCase()} file ({formatFileSize(note.fileSize)}) - May load slowly
                           </span>
                         </div>
                         <Button
                           onClick={handleDownload}
                           size="sm"
                           variant="outline"
-                          className="text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
+                          className="text-xs border-yellow-300 text-yellow-700 hover:bg-yellow-100"
                         >
                           <Download className="h-3 w-3 mr-1" />
-                          Download
+                          Download Instead
                         </Button>
                       </div>
                     </div>
                   )}
                   
                   <div className="flex-1 p-2 sm:p-4 relative">
-                    {/* Multiple viewer fallback system */}
                     <iframe
-                      ref={(iframe) => {
-                        if (iframe && !iframeLoaded) {
-                          iframe.onload = () => {
-                            console.log("Document loaded successfully");
-                            setIframeLoaded(true);
-                          };
-                          iframe.onerror = () => {
-                            console.log("Primary viewer failed, trying fallback...");
-                            // Try Google Docs Viewer as fallback
-                            iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(note.fileUrl)}&embedded=true`;
-                            // If that also fails, show download option
-                            setTimeout(() => {
-                              if (!iframeLoaded) {
-                                setIframeLoaded(true);
-                                // Show a custom error message
-                              }
-                            }, 10000); // Wait 10 seconds for fallback to load
-                          };
-                        }
-                      }}
                       src={getViewerUrl(note.fileUrl, note.fileType)}
                       width="100%"
                       height="100%"
                       frameBorder="0"
                       className="rounded-lg shadow-lg bg-white"
                       title={`${note.title} - Document Viewer`}
-                      allow="fullscreen"
-                      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                      onLoad={() => {
+                        console.log("Document loaded successfully");
+                        setIframeLoaded(true);
+                      }}
+                      onError={() => {
+                        console.error("Failed to load document in iframe");
+                        setIframeLoaded(true); // Hide loading even on error
+                      }}
                     />
                     
-                    {/* Loading overlay */}
-                    {!iframeLoaded && (
-                      <div className="absolute inset-0 bg-white/95 flex items-center justify-center rounded-lg">
-                        <div className="text-center bg-white p-8 rounded-xl shadow-lg border max-w-md mx-4">
-                          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                          <h3 className="text-lg font-semibold text-gray-800 mb-2">Loading Document</h3>
-                          <p className="text-gray-600 mb-1">
-                            {note.fileSize && note.fileSize > 20 * 1024 * 1024 
-                              ? `Loading large ${note.fileType.toUpperCase()} file (${formatFileSize(note.fileSize)})`
-                              : `Loading ${note.fileType.toUpperCase()} document`
-                            }
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {note.fileSize && note.fileSize > 20 * 1024 * 1024 
-                              ? "Large files may take longer to load or may require download"
-                              : "This should only take a moment"
-                            }
-                          </p>
-                          <div className="mt-4 pt-4 border-t border-gray-200">
-                            <Button
-                              onClick={handleDownload}
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Download Instead
-                            </Button>
-                          </div>
+                    {/* Loading overlay for large files */}
+                    {note.fileSize && note.fileSize > 25 * 1024 * 1024 && !iframeLoaded && (
+                      <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-lg">
+                        <div className="text-center bg-white p-6 rounded-lg shadow-lg border">
+                          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                          <p className="text-gray-700 font-medium">Loading large document...</p>
+                          <p className="text-xs text-gray-500 mt-1">This may take a moment</p>
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* Quick download button (always visible when loaded) */}
-                    {iframeLoaded && (
-                      <div className="absolute top-4 right-4">
-                        <Button
-                          onClick={handleDownload}
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 shadow-lg"
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
-                        </Button>
                       </div>
                     )}
                   </div>

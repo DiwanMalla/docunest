@@ -20,6 +20,7 @@ import {
   Check,
   Grid3X3,
   List,
+  Download,
   Calendar,
   HardDrive,
 } from "lucide-react";

@@ -56,28 +56,26 @@ export default async function Dashboard() {
   const notes = await getUserNotes(userId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-white/20">
+      <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <Link
               href="/"
               className="flex items-center hover:opacity-80 transition-opacity"
             >
-              <div className="p-2 bg-blue-600 rounded-xl">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <span className="ml-3 text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <FileText className="h-8 w-8 text-blue-600" />
+              <span className="ml-2 text-xl sm:text-2xl font-bold text-gray-900">
                 DocuNest
               </span>
             </Link>
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
               <Link href="/guest">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="w-full sm:w-auto border-blue-200 text-blue-700 hover:bg-blue-50"
+                  className="w-full sm:w-auto"
                 >
                   <Globe className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Guest View</span>
@@ -85,7 +83,7 @@ export default async function Dashboard() {
                 </Button>
               </Link>
               <Link href="/upload-edgestore">
-                <Button size="sm" className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                <Button size="sm" className="w-full sm:w-auto">
                   <Upload className="h-4 w-4 mr-2" />
                   <span className="hidden sm:inline">Upload File</span>
                   <span className="sm:hidden">Upload</span>
@@ -97,26 +95,23 @@ export default async function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="mb-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 to-blue-600 bg-clip-text text-transparent mb-4">
-              Your Document Library
-            </h1>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {notes.length === 0
-                ? "Ready to get started? Upload your first document to begin building your secure digital library."
-                : `Managing ${notes.length} document${
-                    notes.length === 1 ? "" : "s"
-                  } in your secure cloud storage.`}
-            </p>
-          </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            Your Documents
+          </h1>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
+            {notes.length === 0
+              ? "You haven't uploaded any documents yet."
+              : `You have ${notes.length} document${
+                  notes.length === 1 ? "" : "s"
+                } stored.`}
+          </p>
+        </div>
 
-          {/* Storage Usage Card */}
-          <div className="max-w-md mx-auto mb-8">
-            <StorageUsageCard />
-          </div>
+        {/* Storage Usage Card */}
+        <div className="mb-6">
+          <StorageUsageCard />
         </div>
 
         <DashboardContent notes={notes} />

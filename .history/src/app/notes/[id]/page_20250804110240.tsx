@@ -647,24 +647,24 @@ export default function NotePage() {
                 </div>
               ) : (
                 <div className="h-full flex flex-col">
-                  {/* Show warning for files that might have viewer issues */}
-                  {note.fileSize && note.fileSize > 10 * 1024 * 1024 && (
-                    <div className="bg-blue-50 border-b border-blue-200 px-4 py-2">
+                  {/* Show warning for large non-PDF files */}
+                  {note.fileSize && note.fileSize > 25 * 1024 * 1024 && (
+                    <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2">
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="text-blue-800">
-                            Large {note.fileType.toUpperCase()} file ({formatFileSize(note.fileSize)}) - If preview fails, download is recommended
+                          <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                          <span className="text-yellow-800">
+                            Large {note.fileType.toUpperCase()} file ({formatFileSize(note.fileSize)}) - May load slowly
                           </span>
                         </div>
                         <Button
                           onClick={handleDownload}
                           size="sm"
                           variant="outline"
-                          className="text-xs border-blue-300 text-blue-700 hover:bg-blue-100"
+                          className="text-xs border-yellow-300 text-yellow-700 hover:bg-yellow-100"
                         >
                           <Download className="h-3 w-3 mr-1" />
-                          Download
+                          Download Instead
                         </Button>
                       </div>
                     </div>
